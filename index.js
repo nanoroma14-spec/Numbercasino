@@ -1,6 +1,6 @@
 /**
- * Простой бэкенд для Telegram Clicker
- * Нужен только для создания инвойсов Stars и обработки платежей
+ * Простой бэкенд для Telegram Clicker (плоская структура)
+ * Все файлы лежат в корне репозитория
  */
 
 const express = require('express');
@@ -11,8 +11,8 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Раздаём фронтенд
-app.use(express.static(path.join(__dirname, '../public')));
+// Раздаём фронтенд (index.html лежит в той же папке)
+app.use(express.static(__dirname));
 
 // ============ НАСТРОЙКИ ============
 const BOT_TOKEN = process.env.BOT_TOKEN; // токен от @BotFather
@@ -22,8 +22,8 @@ if (!BOT_TOKEN) {
   console.warn('⚠️  BOT_TOKEN не задан! Укажи его в переменных окружения.');
 }
 
-// Простая "база" в памяти (для продакшена лучше SQLite / Redis / Postgres)
-const paidUsers = new Map(); // userId -> Set of productIds (чтобы не выдавать дважды)
+// Простая "база" в памяти
+const paidUsers = new Map();
 
 // ============ Создание инвойса Stars ============
 app.post('/api/create-invoice', async (req, res) => {
@@ -47,8 +47,8 @@ app.post('/api/create-invoice', async (req, res) => {
         title: title || 'Покупка в игре',
         description: description || 'Внутриигровой товар',
         payload,
-        provider_token: '',          // обязательно пустой для Stars
-        currency: 'XTR',             // Stars
+        provider_token: '',
+        currency: 'XTR',
         prices: [{ label: title || 'Товар', amount: Number(amount) }]
       })
     });
@@ -67,11 +67,10 @@ app.post('/api/create-invoice', async (req, res) => {
   }
 });
 
-// ============ Webhook от Telegram (платежи) ============
+// ============ Webhook от Telegram ============
 app.post(`/webhook/${BOT_TOKEN}`, async (req, res) => {
   const update = req.body;
 
-  // 1. pre_checkout_query — всегда отвечаем ok
   if (update.pre_checkout_query) {
     const queryId = update.pre_checkout_query.id;
     await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerPreCheckoutQuery`, {
@@ -85,21 +84,15 @@ app.post(`/webhook/${BOT_TOKEN}`, async (req, res) => {
     return res.sendStatus(200);
   }
 
-  // 2. successful_payment
   if (update.message?.successful_payment) {
     const payment = update.message.successful_payment;
     try {
       const payload = JSON.parse(payment.invoice_payload);
       const { userId, productId } = payload;
-
       console.log(`✅ Оплата: user ${userId}, product ${productId}, ${payment.total_amount} Stars`);
 
-      // Здесь можно сохранять в БД, что пользователь купил товар.
-      // Фронтенд сам применяет покупку по статусу "paid" от openInvoice.
-      // Но на всякий случай запоминаем.
       if (!paidUsers.has(userId)) paidUsers.set(userId, new Set());
       paidUsers.get(userId).add(productId);
-
     } catch (e) {
       console.error('Ошибка разбора payload', e);
     }
@@ -108,14 +101,12 @@ app.post(`/webhook/${BOT_TOKEN}`, async (req, res) => {
   res.sendStatus(200);
 });
 
-// Проверка, что сервер жив
 app.get('/api/health', (req, res) => {
   res.json({ ok: true, hasToken: !!BOT_TOKEN });
 });
 
 app.listen(PORT, () => {
   console.log(`🚀 Сервер запущен на порту ${PORT}`);
-  console.log(`   Фронтенд: http://localhost:${PORT}`);
   if (!BOT_TOKEN) {
     console.log('   ⚠️  Не забудь указать BOT_TOKEN');
   }
