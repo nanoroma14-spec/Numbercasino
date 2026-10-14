@@ -1,338 +1,113 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Clicker</title>
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: var(--tg-theme-bg-color, #1c1c1e);
-      color: var(--tg-theme-text-color, #fff);
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 16px;
-      overflow-x: hidden;
-      user-select: none;
-      -webkit-user-select: none;
-    }
-    .header {
-      width: 100%;
-      max-width: 420px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 20px;
-    }
-    .stat {
-      background: var(--tg-theme-secondary-bg-color, #2c2c2e);
-      padding: 10px 16px;
-      border-radius: 14px;
-      font-size: 15px;
-      font-weight: 600;
-    }
-    .points {
-      font-size: 42px;
-      font-weight: 800;
-      margin: 12px 0 4px;
-      letter-spacing: -1px;
-    }
-    .energy {
-      font-size: 15px;
-      opacity: 0.8;
-      margin-bottom: 28px;
-    }
-    .click-area {
-      width: 180px;
-      height: 180px;
-      border-radius: 50%;
-      background: linear-gradient(145deg, #4f46e5, #7c3aed);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 64px;
-      box-shadow: 0 12px 30px rgba(79, 70, 229, 0.45);
-      cursor: pointer;
-      transition: transform 0.08s ease;
-      margin-bottom: 32px;
-      touch-action: manipulation;
-    }
-    .click-area:active {
-      transform: scale(0.92);
-    }
-    .shop {
-      width: 100%;
-      max-width: 420px;
-      background: var(--tg-theme-secondary-bg-color, #2c2c2e);
-      border-radius: 18px;
-      padding: 18px;
-    }
-    .shop h2 {
-      font-size: 18px;
-      margin-bottom: 14px;
-    }
-    .item {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 12px 0;
-      border-bottom: 1px solid rgba(255,255,255,0.08);
-    }
-    .item:last-child { border-bottom: none; }
-    .item-info {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
-    .item-name { font-weight: 600; font-size: 15px; }
-    .item-desc { font-size: 13px; opacity: 0.7; }
-    .buy-btn {
-      background: #4f46e5;
-      color: #fff;
-      border: none;
-      padding: 9px 16px;
-      border-radius: 12px;
-      font-weight: 600;
-      font-size: 14px;
-      cursor: pointer;
-      white-space: nowrap;
-    }
-    .buy-btn:disabled {
-      opacity: 0.45;
-      cursor: not-allowed;
-    }
-    .toast {
-      position: fixed;
-      bottom: 28px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: #22c55e;
-      color: #fff;
-      padding: 12px 22px;
-      border-radius: 14px;
-      font-weight: 600;
-      opacity: 0;
-      transition: opacity 0.25s;
-      pointer-events: none;
-      z-index: 100;
-    }
-    .toast.show { opacity: 1; }
-    .toast.error { background: #ef4444; }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <div class="stat" id="level">Ур. 1</div>
-    <div class="stat" id="power">Сила: 1</div>
-  </div>
+/**
+ * Простой бэкенд для Telegram Clicker (плоская структура)
+ * Все файлы лежат в корне репозитория
+ */
 
-  <div class="points" id="points">0</div>
-  <div class="energy" id="energy">⚡ 100 / 100</div>
+const express = require('express');
+const cors = require('cors');
+const path = require('path');
 
-  <div class="click-area" id="clickBtn">👆</div>
+const app = express();
+app.use(cors());
+app.use(express.json());
 
-  <div class="shop">
-    <h2>Магазин</h2>
+// Раздаём фронтенд (index.html лежит в той же папке)
+app.use(express.static(__dirname));
 
-    <div class="item">
-      <div class="item-info">
-        <div class="item-name">+1 к силе</div>
-        <div class="item-desc">Каждый тап даёт больше очков</div>
-      </div>
-      <button class="buy-btn" id="buyPower" onclick="buyWithPoints('power')">50 🪙</button>
-    </div>
+// ============ НАСТРОЙКИ ============
+const BOT_TOKEN = process.env.BOT_TOKEN; // токен от @BotFather
+const PORT = process.env.PORT || 3000;
 
-    <div class="item">
-      <div class="item-info">
-        <div class="item-name">Восстановить энергию</div>
-        <div class="item-desc">Полностью заполняет энергию</div>
-      </div>
-      <button class="buy-btn" id="buyEnergy" onclick="buyWithPoints('energy')">30 🪙</button>
-    </div>
+if (!BOT_TOKEN) {
+  console.warn('⚠️  BOT_TOKEN не задан! Укажи его в переменных окружения.');
+}
 
-    <div class="item">
-      <div class="item-info">
-        <div class="item-name">x2 на 1 час</div>
-        <div class="item-desc">Удваивает все очки</div>
-      </div>
-      <button class="buy-btn" onclick="buyWithStars(50, 'boost_x2')">50 ⭐</button>
-    </div>
+// Простая "база" в памяти
+const paidUsers = new Map();
 
-    <div class="item">
-      <div class="item-info">
-        <div class="item-name">+50 энергии навсегда</div>
-        <div class="item-desc">Увеличивает максимум энергии</div>
-      </div>
-      <button class="buy-btn" onclick="buyWithStars(100, 'energy_cap')">100 ⭐</button>
-    </div>
-  </div>
+// ============ Создание инвойса Stars ============
+app.post('/api/create-invoice', async (req, res) => {
+  try {
+    const { userId, productId, amount, title, description } = req.body;
 
-  <div class="toast" id="toast"></div>
-
-  <script>
-    // ============ Настройки ============
-    // Замени на URL своего бэкенда после деплоя
-    const API_URL = window.location.origin; // если фронт и бэк на одном домене
-    // Или укажи отдельно: const API_URL = "https://твой-бэкенд.railway.app";
-
-    const tg = window.Telegram?.WebApp;
-    if (tg) {
-      tg.ready();
-      tg.expand();
-      tg.setHeaderColor('#1c1c1e');
-      tg.setBackgroundColor('#1c1c1e');
+    if (!userId || !productId || !amount) {
+      return res.status(400).json({ error: 'Не хватает данных' });
     }
 
-    // ============ Состояние игры ============
-    let state = {
-      points: 0,
-      energy: 100,
-      maxEnergy: 100,
-      power: 1,
-      level: 1,
-      boostUntil: 0, // timestamp
-    };
-
-    // Загружаем сохранение
-    const saved = localStorage.getItem('clicker_save');
-    if (saved) {
-      try { state = { ...state, ...JSON.parse(saved) }; } catch {}
+    if (!BOT_TOKEN) {
+      return res.status(500).json({ error: 'BOT_TOKEN не настроен на сервере' });
     }
 
-    // ============ UI ============
-    function updateUI() {
-      document.getElementById('points').textContent = Math.floor(state.points).toLocaleString();
-      document.getElementById('energy').textContent = `⚡ ${Math.floor(state.energy)} / ${state.maxEnergy}`;
-      document.getElementById('power').textContent = `Сила: ${state.power}`;
-      document.getElementById('level').textContent = `Ур. ${state.level}`;
+    const payload = JSON.stringify({ userId, productId, ts: Date.now() });
 
-      document.getElementById('buyPower').disabled = state.points < 50;
-      document.getElementById('buyEnergy').disabled = state.points < 30 || state.energy >= state.maxEnergy;
-    }
-
-    function save() {
-      localStorage.setItem('clicker_save', JSON.stringify(state));
-    }
-
-    function showToast(msg, isError = false) {
-      const el = document.getElementById('toast');
-      el.textContent = msg;
-      el.className = 'toast show' + (isError ? ' error' : '');
-      setTimeout(() => el.classList.remove('show'), 2200);
-    }
-
-    // ============ Кликер ============
-    document.getElementById('clickBtn').addEventListener('click', () => {
-      if (state.energy < 1) {
-        showToast('Нет энергии!', true);
-        return;
-      }
-
-      const now = Date.now();
-      const multiplier = now < state.boostUntil ? 2 : 1;
-      const earned = state.power * multiplier;
-
-      state.points += earned;
-      state.energy -= 1;
-
-      // Уровень
-      const newLevel = Math.floor(state.points / 500) + 1;
-      if (newLevel > state.level) {
-        state.level = newLevel;
-        showToast(`Уровень ${state.level}!`);
-      }
-
-      updateUI();
-      save();
+    const response = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/createInvoiceLink`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: title || 'Покупка в игре',
+        description: description || 'Внутриигровой товар',
+        payload,
+        provider_token: '',
+        currency: 'XTR',
+        prices: [{ label: title || 'Товар', amount: Number(amount) }]
+      })
     });
 
-    // Регенерация энергии
-    setInterval(() => {
-      if (state.energy < state.maxEnergy) {
-        state.energy = Math.min(state.maxEnergy, state.energy + 0.5);
-        updateUI();
-        save();
-      }
-    }, 2000);
+    const data = await response.json();
 
-    // ============ Покупки за очки ============
-    function buyWithPoints(type) {
-      if (type === 'power' && state.points >= 50) {
-        state.points -= 50;
-        state.power += 1;
-        showToast('Сила +1!');
-      } else if (type === 'energy' && state.points >= 30) {
-        state.points -= 30;
-        state.energy = state.maxEnergy;
-        showToast('Энергия восстановлена!');
-      }
-      updateUI();
-      save();
+    if (!data.ok) {
+      console.error('Telegram error:', data);
+      return res.status(500).json({ error: data.description || 'Ошибка Telegram' });
     }
 
-    // ============ Покупки за Stars ============
-    async function buyWithStars(amount, productId) {
-      if (!tg) {
-        showToast('Открой в Telegram', true);
-        return;
-      }
+    res.json({ invoiceLink: data.result });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Внутренняя ошибка сервера' });
+  }
+});
 
-      try {
-        const userId = tg.initDataUnsafe?.user?.id;
-        if (!userId) {
-          showToast('Не удалось получить ID', true);
-          return;
-        }
+// ============ Webhook от Telegram ============
+app.post(`/webhook/${BOT_TOKEN}`, async (req, res) => {
+  const update = req.body;
 
-        const res = await fetch(`${API_URL}/api/create-invoice`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId,
-            productId,
-            amount,
-            title: productId === 'boost_x2' ? 'x2 буст на 1 час' : '+50 энергии навсегда',
-            description: productId === 'boost_x2' ? 'Удваивает очки на 1 час' : 'Увеличивает максимум энергии на 50'
-          })
-        });
+  if (update.pre_checkout_query) {
+    const queryId = update.pre_checkout_query.id;
+    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerPreCheckoutQuery`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        pre_checkout_query_id: queryId,
+        ok: true
+      })
+    });
+    return res.sendStatus(200);
+  }
 
-        const data = await res.json();
-        if (!data.invoiceLink) {
-          showToast(data.error || 'Ошибка создания счёта', true);
-          return;
-        }
+  if (update.message?.successful_payment) {
+    const payment = update.message.successful_payment;
+    try {
+      const payload = JSON.parse(payment.invoice_payload);
+      const { userId, productId } = payload;
+      console.log(`✅ Оплата: user ${userId}, product ${productId}, ${payment.total_amount} Stars`);
 
-        tg.openInvoice(data.invoiceLink, (status) => {
-          if (status === 'paid') {
-            applyPurchase(productId);
-            showToast('Покупка успешна!');
-          } else if (status === 'failed') {
-            showToast('Оплата не прошла', true);
-          }
-        });
-      } catch (e) {
-        console.error(e);
-        showToast('Ошибка сети', true);
-      }
+      if (!paidUsers.has(userId)) paidUsers.set(userId, new Set());
+      paidUsers.get(userId).add(productId);
+    } catch (e) {
+      console.error('Ошибка разбора payload', e);
     }
+  }
 
-    function applyPurchase(productId) {
-      if (productId === 'boost_x2') {
-        state.boostUntil = Date.now() + 60 * 60 * 1000; // 1 час
-      } else if (productId === 'energy_cap') {
-        state.maxEnergy += 50;
-        state.energy = state.maxEnergy;
-      }
-      updateUI();
-      save();
-    }
+  res.sendStatus(200);
+});
 
-    // Старт
-    updateUI();
-  </script>
-</body>
-</html>
+app.get('/api/health', (req, res) => {
+  res.json({ ok: true, hasToken: !!BOT_TOKEN });
+});
+
+app.listen(PORT, () => {
+  console.log(`🚀 Сервер запущен на порту ${PORT}`);
+  if (!BOT_TOKEN) {
+    console.log('   ⚠️  Не забудь указать BOT_TOKEN');
+  }
+});
