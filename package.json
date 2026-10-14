@@ -2,10 +2,10 @@
   "name": "telegram-clicker",
   "version": "1.0.0",
   "description": "Простой кликер для Telegram Mini App с оплатой Stars",
-  "main": "server/index.js",
+  "main": "index.js",
   "scripts": {
-    "start": "node server/index.js",
-    "dev": "node server/index.js"
+    "start": "node index.js",
+    "dev": "node index.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
